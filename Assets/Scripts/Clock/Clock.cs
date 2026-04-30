@@ -9,12 +9,14 @@ public class Clock : MonoBehaviour
 
     private RequesterTime _requesterTime;
     private TimeSpan _currentTime = TimeSpan.Zero;
+
     private bool _isEditing;
+    private TimeSpan _editStartTime;
+    private double _editStartRealtime;
 
     public event Action<TimeSpan> TimeChanged;
 
     public bool IsEditing => _isEditing;
-
     public TimeSpan CurrentTime => _currentTime;
 
     private void Awake()
@@ -24,7 +26,7 @@ public class Clock : MonoBehaviour
 
     private void Start()
     {
-        _requesterTime.GetServerTime(OnServerTimeReceived);
+        RequestServerTime();
     }
 
     private void Update()
@@ -35,9 +37,39 @@ public class Clock : MonoBehaviour
         AddSeconds(Time.deltaTime);
     }
 
-    public void SetEditing(bool value)
+    public void BeginEditing()
     {
-        _isEditing = value;
+        if (_isEditing)
+            return;
+
+        _isEditing = true;
+        _editStartTime = _currentTime;
+        _editStartRealtime = Time.realtimeSinceStartupAsDouble;
+    }
+
+    public void SaveEditing()
+    {
+        _isEditing = false;
+    }
+
+    public void CancelEditing()
+    {
+        if (!_isEditing)
+            return;
+
+        double elapsedSeconds = Time.realtimeSinceStartupAsDouble - _editStartRealtime;
+        SetTotalSeconds(_editStartTime.TotalSeconds + elapsedSeconds);
+
+        _isEditing = false;
+    }
+
+    public void RequestServerTime(Action onCompleted = null)
+    {
+        _requesterTime.GetServerTime(serverTime =>
+        {
+            SetTime(serverTime.Hour, serverTime.Minute, serverTime.Second);
+            onCompleted?.Invoke();
+        });
     }
 
     public void AddSeconds(double deltaSeconds)
@@ -58,11 +90,6 @@ public class Clock : MonoBehaviour
     public TimeSpan GetCurrentTime()
     {
         return _currentTime;
-    }
-
-    private void OnServerTimeReceived(DateTime serverTime)
-    {
-        SetTime(serverTime.Hour, serverTime.Minute, serverTime.Second);
     }
 
     private void SetTotalSeconds(double totalSeconds)

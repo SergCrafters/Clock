@@ -8,25 +8,35 @@ public class EditTimePanel : MonoBehaviour
     [SerializeField] private TMP_InputField _hourInput;
     [SerializeField] private TMP_InputField _minuteInput;
     [SerializeField] private TMP_InputField _secondInput;
+
     [SerializeField] private Button _saveButton;
+    [SerializeField] private Button _cancelButton;
+    [SerializeField] private Button _serverTimeButton;
+
     [SerializeField] private Clock _clock;
 
     private void OnEnable()
     {
         _saveButton.onClick.AddListener(Save);
+        _cancelButton.onClick.AddListener(Cancel);
+        _serverTimeButton.onClick.AddListener(ReturnServerTime);
+
         _clock.TimeChanged += OnClockTimeChanged;
     }
 
     private void OnDisable()
     {
         _saveButton.onClick.RemoveListener(Save);
+        _cancelButton.onClick.RemoveListener(Cancel);
+        _serverTimeButton.onClick.RemoveListener(ReturnServerTime);
+
         _clock.TimeChanged -= OnClockTimeChanged;
     }
 
     public void Open()
     {
         gameObject.SetActive(true);
-        _clock.SetEditing(true);
+        _clock.BeginEditing();
         SetInputs(_clock.GetCurrentTime());
     }
 
@@ -37,7 +47,27 @@ public class EditTimePanel : MonoBehaviour
         int seconds = ReadClampedValue(_secondInput.text, ClockConstants.MIN_SECOND, ClockConstants.MAX_SECOND);
 
         _clock.SetTime(hours, minutes, seconds);
-        _clock.SetEditing(false);
+        _clock.SaveEditing();
+        Close();
+    }
+
+    private void Cancel()
+    {
+        _clock.CancelEditing();
+        Close();
+    }
+
+    private void ReturnServerTime()
+    {
+        _clock.RequestServerTime(() =>
+        {
+            _clock.SaveEditing();
+            Close();
+        });
+    }
+
+    private void Close()
+    {
         gameObject.SetActive(false);
     }
 
