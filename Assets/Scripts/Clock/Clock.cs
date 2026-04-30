@@ -1,54 +1,85 @@
 using System;
 using UnityEngine;
 
+[RequireComponent(typeof(RequesterTime))]
 public class Clock : MonoBehaviour
 {
-    [SerializeField] private float _seconds;
-    [SerializeField] private float _minutes;
-    [SerializeField] private float _hours;
-
     [SerializeField] private TimePanel _timePanel;
-    [SerializeField] private RequesterTime _requesterTime;
+    [SerializeField] private RotaterHands _rotater;
 
-    private float _maxHours = 24;
-    private float _maxMinutes = 60;
-    private float _maxSeconds = 60;
+    private RequesterTime _requesterTime;
+    private TimeSpan _currentTime = TimeSpan.Zero;
+    private bool _isEditing;
 
-    private TimeSpan _currentTime = new(0, 0, 0);
+    public event Action<TimeSpan> TimeChanged;
 
-    private RotaterHands _rotater;
+    public bool IsEditing => _isEditing;
+
+    public TimeSpan CurrentTime => _currentTime;
 
     private void Awake()
     {
-        _rotater = GetComponent<RotaterHands>();
         _requesterTime = GetComponent<RequesterTime>();
+    }
 
-        _requesterTime.GetServerTime((DateTime serverTime) =>
-        {
-            _currentTime = new TimeSpan(serverTime.Hour, serverTime.Minute, serverTime.Second);
-        });
-        //_requesterTime.GetServerTime((DateTime serverTime) => _currentTime = new TimeSpan(serverTime.Hour, serverTime.Minute, serverTime.Second));
+    private void Start()
+    {
+        _requesterTime.GetServerTime(OnServerTimeReceived);
     }
 
     private void Update()
     {
-        _currentTime += TimeSpan.FromSeconds(Time.deltaTime);
+        if (_isEditing)
+            return;
 
-        float totalSeconds = (float)_currentTime.TotalSeconds;
-        float totalMinutes = (float)_currentTime.TotalMinutes;
-        float totalHours = (float)_currentTime.TotalHours;
-
-        _rotater.CalculateAngle(totalSeconds % _maxSeconds, totalMinutes % _maxMinutes, totalHours % _maxHours);
-        _timePanel.ShowTime(_currentTime.Hours, _currentTime.Minutes, _currentTime.Seconds);
+        AddSeconds(Time.deltaTime);
     }
 
-    public void EditTime(int hour, int minute, int second)
+    public void SetEditing(bool value)
     {
-        _currentTime = new(hour, minute, second);
+        _isEditing = value;
+    }
+
+    public void AddSeconds(double deltaSeconds)
+    {
+        SetTotalSeconds(_currentTime.TotalSeconds + deltaSeconds);
+    }
+
+    public void SetTime(int hour, int minute, int second)
+    {
+        hour = Mathf.Clamp(hour, ClockConstants.MIN_HOUR, ClockConstants.MAX_HOUR);
+        minute = Mathf.Clamp(minute, ClockConstants.MIN_MINUTE, ClockConstants.MAX_MINUTE);
+        second = Mathf.Clamp(second, ClockConstants.MIN_SECOND, ClockConstants.MAX_SECOND);
+
+        _currentTime = new TimeSpan(hour, minute, second);
+        NotifyTimeChanged();
     }
 
     public TimeSpan GetCurrentTime()
     {
         return _currentTime;
+    }
+
+    private void OnServerTimeReceived(DateTime serverTime)
+    {
+        SetTime(serverTime.Hour, serverTime.Minute, serverTime.Second);
+    }
+
+    private void SetTotalSeconds(double totalSeconds)
+    {
+        totalSeconds %= ClockConstants.SECONDS_PER_DAY;
+
+        if (totalSeconds < 0)
+            totalSeconds += ClockConstants.SECONDS_PER_DAY;
+
+        _currentTime = TimeSpan.FromSeconds(totalSeconds);
+        NotifyTimeChanged();
+    }
+
+    private void NotifyTimeChanged()
+    {
+        _rotater?.SetTime(_currentTime);
+        _timePanel?.ShowTime(_currentTime.Hours, _currentTime.Minutes, _currentTime.Seconds);
+        TimeChanged?.Invoke(_currentTime);
     }
 }

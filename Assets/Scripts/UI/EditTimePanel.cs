@@ -1,3 +1,4 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,60 +13,54 @@ public class EditTimePanel : MonoBehaviour
 
     private void OnEnable()
     {
-        _saveButton.onClick.AddListener(Edit);
-        _saveButton.onClick.AddListener(Close);
+        _saveButton.onClick.AddListener(Save);
+        _clock.TimeChanged += OnClockTimeChanged;
     }
 
     private void OnDisable()
     {
-        _saveButton.onClick.RemoveListener(Edit);
-        _saveButton.onClick.RemoveListener(Close);
+        _saveButton.onClick.RemoveListener(Save);
+        _clock.TimeChanged -= OnClockTimeChanged;
     }
 
     public void Open()
     {
-        SetCurrentTimeToInputs();
         gameObject.SetActive(true);
+        _clock.SetEditing(true);
+        SetInputs(_clock.GetCurrentTime());
     }
 
-    private void Edit()
+    private void Save()
     {
-        int hours = int.Parse(_hourInput.text);
-        if (CheckOnNegative(hours))
-            hours = 0;
+        int hours = ReadClampedValue(_hourInput.text, ClockConstants.MIN_HOUR, ClockConstants.MAX_HOUR);
+        int minutes = ReadClampedValue(_minuteInput.text, ClockConstants.MIN_MINUTE, ClockConstants.MAX_MINUTE);
+        int seconds = ReadClampedValue(_secondInput.text, ClockConstants.MIN_SECOND, ClockConstants.MAX_SECOND);
 
-        int minutes = int.Parse(_minuteInput.text);
-        if (CheckOnNegative(minutes))
-            minutes = 0;
-
-        int seconds = int.Parse(_secondInput.text);
-        if (CheckOnNegative(seconds))
-            seconds = 0;
-
-        _clock.EditTime(hours, minutes, seconds);
-    }
-
-    private void Close()
-    {
+        _clock.SetTime(hours, minutes, seconds);
+        _clock.SetEditing(false);
         gameObject.SetActive(false);
     }
 
-    private bool CheckOnNegative(int value)
+    private void OnClockTimeChanged(TimeSpan time)
     {
-        if (value < 0)
-            return true;
+        if (!gameObject.activeInHierarchy)
+            return;
 
-        return false;
+        SetInputs(time);
     }
 
-    private void SetCurrentTimeToInputs()
+    private void SetInputs(TimeSpan time)
     {
-        if (_clock != null)
-        {
-            var currentTime = _clock.GetCurrentTime();
-            _hourInput.text = currentTime.Hours.ToString("D2");
-            _minuteInput.text = currentTime.Minutes.ToString("D2");
-            _secondInput.text = currentTime.Seconds.ToString("D2");
-        }
+        _hourInput.text = time.Hours.ToString(ClockConstants.TWO_DIGIT_FORMAT);
+        _minuteInput.text = time.Minutes.ToString(ClockConstants.TWO_DIGIT_FORMAT);
+        _secondInput.text = time.Seconds.ToString(ClockConstants.TWO_DIGIT_FORMAT);
+    }
+
+    private int ReadClampedValue(string value, int min, int max)
+    {
+        if (!int.TryParse(value, out int result))
+            result = min;
+
+        return Mathf.Clamp(result, min, max);
     }
 }
